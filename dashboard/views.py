@@ -1,66 +1,75 @@
-from django.db.models import Sum, F, FloatField
-from rest_framework.decorators import api_view, permission_classes
+# dashboard/views.py
+
+from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from decimal import Decimal
+from rest_framework.decorators import api_view
+from django.db.models import Sum
 
-from flock.models import FlockBatch, DailyRecord
-from sales.models import OrderItem
-from finance.models import Expense
+from accounts.models import FarmMembership
+from flock.models import FlockBatch
+from finance.models import Income, Expense
 
-@api_view(["GET"])
-@permission_classes([IsAuthenticated])
+
+class FarmDashboardView(APIView):
+    """
+    API view to return the main dashboard KPIs for a farm.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        membership = FarmMembership.objects.filter(user=request.user).first()
+        if not membership:
+            return Response({"error": "User not assigned to a farm"})
+
+        farm = membership.farm
+
+        # Birds in stock
+        birds = FlockBatch.objects.filter(farm=farm).aggregate(
+            total=Sum("current_stock")
+        )["total"] or 0
+
+        # Total received
+        total_received = FlockBatch.objects.filter(farm=farm).aggregate(
+            total=Sum("quantity_received")
+        )["total"] or 0
+
+        # Total mortality
+        total_mortality = sum(
+            batch.total_mortality_count
+            for batch in FlockBatch.objects.filter(farm=farm)
+        )
+
+        mortality_rate = 0
+        if total_received > 0:
+            mortality_rate = round((total_mortality / total_received) * 100, 2)
+
+        # Income and expenses
+        income = Income.objects.filter(farm=farm).aggregate(
+            total=Sum("amount")
+        )["total"] or 0
+
+        expenses = Expense.objects.filter(farm=farm).aggregate(
+            total=Sum("amount")
+        )["total"] or 0
+
+        profit = income - expenses
+
+        return Response({
+            "birds_in_stock": birds,
+            "mortality_rate": mortality_rate,
+            "total_income": income,
+            "total_expenses": expenses,
+            "profit": profit
+        })
+
+
+@api_view(['GET'])
 def farm_kpis(request):
-    farm = request.user.farm
-
-    # 1️⃣ Total birds received
-    total_received = FlockBatch.objects.filter(farm=farm).aggregate(
-        total=Sum("quantity_received")
-    )["total"] or 0
-
-    # 2️⃣ Total mortality
-    total_mortality = DailyRecord.objects.filter(flock__farm=farm).aggregate(
-        total=Sum("mortality")
-    )["total"] or 0
-
-    # 3️⃣ Total birds sold (from orders that are paid)
-    total_sold = OrderItem.objects.filter(
-        order__farm=farm,
-        order__is_paid=True
-    ).aggregate(total=Sum("quantity"))["total"] or 0
-
-    # 4️⃣ Birds still in cages
-    birds_alive = total_received - total_mortality - total_sold
-    if birds_alive < 0:
-        birds_alive = 0  # safety check
-
-    # 5️⃣ Total feed used
-    total_feed = DailyRecord.objects.filter(flock__farm=farm).aggregate(
-        total=Sum("feed_used_kg")
-    )["total"] or 0
-
-    # 6️⃣ Total revenue
-    revenue = OrderItem.objects.filter(
-        order__farm=farm, order__is_paid=True
-    ).annotate(item_total=F("quantity") * F("price")).aggregate(
-        total=Sum("item_total", output_field=FloatField())
-    )["total"] or 0
-
-    # 7️⃣ Total expenses
-    expenses = Expense.objects.filter(farm=farm).aggregate(
-        total=Sum("amount")
-    )["total"] or 0
-
-    # 8️⃣ Net profit
-    net_profit = float(revenue) - float(expenses)
-
+    """
+    Placeholder KPI endpoint.
+    Can be expanded later with more detailed metrics.
+    """
     return Response({
-        "total_received": total_received,
-        "total_mortality": total_mortality,
-        "birds_sold": total_sold,
-        "birds_alive": birds_alive,
-        "total_feed_used_kg": total_feed,
-        "revenue": revenue,
-        "expenses": expenses,
-        "net_profit": net_profit,
+        "message": "Farm KPIs endpoint - define metrics here later"
     })

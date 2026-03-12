@@ -1,34 +1,27 @@
 from django.contrib import admin
-from .models import Order, OrderItem
-from django.utils.html import format_html
+from .models import Order, OrderItem, Customer
 
+class OrderItemInline(admin.TabularInline):
+    model = OrderItem
+    extra = 1 # Shows one empty row for adding items
+    # Removed readonly_fields so the model can receive the auto-calculated price
 
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
-    list_display = (
-        "id",
-        "farm",
-        "flock",
-        "customer_name",
-        "is_paid",
-        "created_at",
-        "updated_at",
-        "order_total_display",
-    )
-    list_filter = ("farm", "flock", "is_paid")
-    search_fields = ("customer_name", "flock__name")
+    list_display = ['id', 'get_customer_name', 'farm', 'status', 'total_amount', 'created_at']
+    list_filter = ['status', 'farm', 'created_at']
+    inlines = [OrderItemInline]
 
-    def order_total_display(self, obj):
-        return obj.order_total
-    order_total_display.short_description = "Order Total"
+    def get_customer_name(self, obj):
+        if obj.user_customer:
+            return f"User: {obj.user_customer.username}"
+        if obj.manual_customer:
+            return f"Manual: {obj.manual_customer.full_name}"
+        return "Walk-in"
+    
+    get_customer_name.short_description = 'Customer'
 
-
-@admin.register(OrderItem)
-class OrderItemAdmin(admin.ModelAdmin):
-    list_display = ("id", "order", "product_name", "quantity", "price", "total_price_display")
-    list_filter = ("order__farm",)
-    search_fields = ("product_name", "order__customer_name")
-
-    def total_price_display(self, obj):
-        return obj.total_price
-    total_price_display.short_description = "Item Total"
+@admin.register(Customer)
+class CustomerAdmin(admin.ModelAdmin):
+    list_display = ['full_name', 'farm', 'email', 'phone_number']
+    search_fields = ['full_name', 'email']

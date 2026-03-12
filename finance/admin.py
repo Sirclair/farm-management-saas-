@@ -1,14 +1,14 @@
 from django.contrib import admin
-from .models import Expense, ExpenseCategory
-
-@admin.register(ExpenseCategory)
-class ExpenseCategoryAdmin(admin.ModelAdmin):
-    list_display = ("id", "name", "farm", "description", "created_at", "updated_at")
-    search_fields = ("name", "farm__name")
+from .models import Expense, Income
 
 @admin.register(Expense)
 class ExpenseAdmin(admin.ModelAdmin):
-    # Use fields that actually exist in Expense model
-    list_display = ("id", "farm", "category", "amount", "description", "created_at")
-    list_filter = ("farm", "category", "created_at")
-    search_fields = ("farm__name", "category__name", "description")
+    list_display = ['date', 'category', 'amount', 'farm']
+    list_filter = ['category', 'date', 'farm']
+    search_fields = ['description', 'category']
+
+@admin.register(Income)
+class IncomeAdmin(admin.ModelAdmin):
+    list_display = ['date', 'source', 'amount', 'farm']
+    list_filter = ['source', 'date', 'farm']
+    search_fields = ['source']
